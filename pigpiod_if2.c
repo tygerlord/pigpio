@@ -25,7 +25,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 */
 
-/* PIGPIOD_IF2_VERSION 8 */
+/* PIGPIOD_IF2_VERSION 17 */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -74,6 +74,19 @@ struct callback_s
    callback_t *next;
 };
 
+struct evtCallback_s
+{
+
+   int id;
+   int pi;
+   int event;
+   CBF_t f;
+   void * user;
+   int ex;
+   evtCallback_t *prev;
+   evtCallback_t *next;
+};
+
 /* GLOBALS ---------------------------------------------------------------- */
 
 static int             gPiInUse     [MAX_PI];
@@ -82,6 +95,7 @@ static int             gPigCommand  [MAX_PI];
 static int             gPigHandle   [MAX_PI];
 static int             gPigNotify   [MAX_PI];
 
+static uint32_t        gEventBits   [MAX_PI];
 static uint32_t        gNotifyBits  [MAX_PI];
 static uint32_t        gLastLevel   [MAX_PI];
 
@@ -92,6 +106,9 @@ static int             gCancelState [MAX_PI];
 
 static callback_t *gCallBackFirst = 0;
 static callback_t *gCallBackLast  = 0;
+
+static evtCallback_t *geCallBackFirst = 0;
+static evtCallback_t *geCallBackLast  = 0;
 
 /* PRIVATE ---------------------------------------------------------------- */
 
@@ -217,33 +234,10 @@ static int pigpio_command_ext
    return cmd.res;
 }
 
-static int pigpioOpenSocket(char *addr, char *port)
+static int pigpioOpenSocket(char *addrStr, char *portStr)
 {
    int sock, err, opt;
    struct addrinfo hints, *res, *rp;
-   const char *addrStr, *portStr;
-
-   if (!addr)
-   {
-      addrStr = getenv(PI_ENVADDR);
-
-      if ((!addrStr) || (!strlen(addrStr)))
-      {
-         addrStr = PI_DEFAULT_SOCKET_ADDR_STR;
-      }
-   }
-   else addrStr = addr;
-
-   if (!port)
-   {
-      portStr = getenv(PI_ENVPORT);
-
-      if ((!portStr) || (!strlen(portStr)))
-      {
-         portStr = PI_DEFAULT_SOCKET_PORT_STR;
-      }
-   }
-   else portStr = port;
 
    memset (&hints, 0, sizeof (hints));
 
@@ -278,6 +272,7 @@ static int pigpioOpenSocket(char *addr, char *port)
 static void dispatch_notification(int pi, gpioReport_t *r)
 {
    callback_t *p;
+   evtCallback_t *ep;
    uint32_t changed;
    int l, g;
 
@@ -310,18 +305,37 @@ static void dispatch_notification(int pi, gpioReport_t *r)
    }
    else
    {
-      g = (r->flags) & 31;
-
-      p = gCallBackFirst;
-
-      while (p)
+      if ((r->flags) & PI_NTFY_FLAGS_WDOG)
       {
-         if (((p->pi) == pi) && ((p->gpio) == g))
+         g = (r->flags) & 31;
+
+         p = gCallBackFirst;
+
+         while (p)
          {
-            if (p->ex) (p->f)(pi, g, PI_TIMEOUT, r->tick, p->user);
-            else       (p->f)(pi, g, PI_TIMEOUT, r->tick);
+            if (((p->pi) == pi) && ((p->gpio) == g))
+            {
+               if (p->ex) (p->f)(pi, g, PI_TIMEOUT, r->tick, p->user);
+               else       (p->f)(pi, g, PI_TIMEOUT, r->tick);
+            }
+            p = p->next;
          }
-         p = p->next;
+      }
+      else if ((r->flags) & PI_NTFY_FLAGS_EVENT)
+      {
+         g = (r->flags) & 31;
+
+         ep = geCallBackFirst;
+
+         while (ep)
+         {
+            if (((ep->pi) == pi) && ((ep->event) == g))
+            {
+               if (ep->ex) (ep->f)(pi, g, r->tick, ep->user);
+               else        (ep->f)(pi, g, r->tick);
+            }
+            ep = ep->next;
+         }
       }
    }
 }
@@ -447,8 +461,90 @@ static int intCallback(
    return pigif_bad_callback;
 }
 
+static void findEventBits(int pi)
+{
+   evtCallback_t *ep;
+   uint32_t bits = 0;
+
+   ep = geCallBackFirst;
+
+   while (ep)
+   {
+      if (ep->pi == pi) bits |= (1<<(ep->event));
+      ep = ep->next;
+   }
+
+   if (bits != gEventBits[pi])
+   {
+      gEventBits[pi] = bits;
+      pigpio_command(pi, PI_CMD_EVM, gPigHandle[pi], gEventBits[pi], 1);
+   }
+}
+
+static void _ewfe(
+   int pi, unsigned event, uint32_t tick, void *user)
+{
+   *(int *)user = 1;
+}
+
+static int intEventCallback(
+   int pi, unsigned event, void *f, void *user, int ex)
+{
+   static int id = 0;
+   evtCallback_t *ep;
+
+   if ((event >=0) && (event < 32) && f)
+   {
+      /* prevent duplicates */
+
+      ep = geCallBackFirst;
+
+      while (ep)
+      {
+         if ((ep->pi    == pi)    &&
+             (ep->event == event) &&
+             (ep->f     == f))
+         {
+            return pigif_duplicate_callback;
+         }
+         ep = ep->next;
+      }
+
+      ep = malloc(sizeof(evtCallback_t));
+
+      if (ep)
+      {
+         if (!geCallBackFirst) geCallBackFirst = ep;
+
+         ep->id = id++;
+         ep->pi = pi;
+         ep->event = event;
+         ep->f = f;
+         ep->user = user;
+         ep->ex = ex;
+         ep->next = 0;
+         ep->prev = geCallBackLast;
+
+         if (ep->prev) (ep->prev)->next = ep;
+         geCallBackLast = ep;
+
+         findEventBits(pi);
+
+         return ep->id;
+      }
+
+      return pigif_bad_malloc;
+   }
+
+   return pigif_bad_callback;
+}
+
 static int recvMax(int pi, void *buf, int bufsize, int sent)
 {
+   /*
+   Copy at most bufSize bytes from the receieved message to
+   buf.  Discard the rest of the message.
+   */
    uint8_t scratch[4096];
    int remaining, fetch, count;
 
@@ -602,6 +698,26 @@ int pigpio_start(char *addrStr, char *portStr)
    if (pi >= MAX_PI) return pigif_too_many_pis;
 
    gPiInUse[pi] = 1;
+
+   if ((!addrStr)  || (!strlen(addrStr)))
+   {
+      addrStr = getenv(PI_ENVADDR);
+
+      if ((!addrStr) || (!strlen(addrStr)))
+      {
+         addrStr = PI_DEFAULT_SOCKET_ADDR_STR;
+      }
+   }
+
+   if ((!portStr) || (!strlen(portStr)))
+   {
+      portStr = getenv(PI_ENVPORT);
+
+      if ((!portStr) || (!strlen(portStr)))
+      {
+         portStr = PI_DEFAULT_SOCKET_PORT_STR;
+      }
+   }
 
    pthread_mutex_init(&gCmdMutex[pi], NULL);
 
@@ -837,6 +953,9 @@ int wave_add_serial(
 int wave_create(int pi)
    {return pigpio_command(pi, PI_CMD_WVCRE, 0, 0, 1);}
 
+int wave_create_and_pad(int pi, int percent)
+   {return pigpio_command(pi, PI_CMD_WVCAP, percent, 0, 1);}
+
 int wave_delete(int pi, unsigned wave_id)
    {return pigpio_command(pi, PI_CMD_WVDEL, wave_id, 0, 1);}
 
@@ -991,6 +1110,25 @@ int run_script(int pi, unsigned script_id, unsigned numPar, uint32_t *param)
 
    return pigpio_command_ext
       (pi, PI_CMD_PROCR, script_id, 0, numPar*4, 1, ext, 1);
+}
+
+int update_script(int pi, unsigned script_id, unsigned numPar, uint32_t *param)
+{
+   gpioExtent_t ext[1];
+
+   /*
+   p1=script id
+   p2=0
+   p3=numPar * 4
+   ## extension ##
+   uint32_t[numPar] pars
+   */
+
+   ext[0].size = 4 * numPar;
+   ext[0].ptr = param;
+
+   return pigpio_command_ext
+      (pi, PI_CMD_PROCU, script_id, 0, numPar*4, 1, ext, 1);
 }
 
 int script_status(int pi, unsigned script_id, uint32_t *param)
@@ -1390,6 +1528,76 @@ int bb_i2c_zip(
    if (bytes > 0)
    {
       bytes = recvMax(pi, outBuf, outLen, bytes);
+   }
+
+   _pmu(pi);
+
+   return bytes;
+}
+
+int bb_spi_open(
+   int pi,
+   unsigned CS, unsigned MISO, unsigned MOSI, unsigned SCLK,
+   unsigned baud, unsigned spiFlags)
+{
+   uint8_t buf[20];
+   gpioExtent_t ext[1];
+
+   /*
+   p1=CS
+   p2=0
+   p3=20
+   ## extension ##
+   uint32_t MISO
+   uint32_t MOSI
+   uint32_t SCLK
+   uint32_t baud
+   uint32_t spiFlags
+   */
+
+   ext[0].size = 20;
+   ext[0].ptr = &buf;
+
+   memcpy(buf +  0, &MISO, 4);
+   memcpy(buf +  4, &MOSI, 4);
+   memcpy(buf +  8, &SCLK, 4);
+   memcpy(buf + 12, &baud, 4);
+   memcpy(buf + 16, &spiFlags, 4);
+
+   return pigpio_command_ext
+      (pi, PI_CMD_BSPIO, CS, 0, 20, 1, ext, 1);
+}
+
+int bb_spi_close(int pi, unsigned CS)
+   {return pigpio_command(pi, PI_CMD_BSPIC, CS, 0, 1);}
+
+int bb_spi_xfer(
+   int pi,
+   unsigned CS,
+   char    *txBuf,
+   char    *rxBuf,
+   unsigned count)
+{
+   int bytes;
+   gpioExtent_t ext[1];
+
+   /*
+   p1=CS
+   p2=0
+   p3=count
+   ## extension ##
+   char txBuf[count]
+   */
+
+   ext[0].size = count;
+   ext[0].ptr = txBuf;
+
+   bytes = pigpio_command_ext
+      (pi, PI_CMD_BSPIX, CS, 0, count, 1, ext, 0);
+
+   if (bytes > 0)
+   {
+      bytes = recvMax(pi, rxBuf, count, bytes);
    }
 
    _pmu(pi);
@@ -1804,4 +2012,115 @@ int wait_for_edge(int pi, unsigned user_gpio, unsigned edge, double timeout)
 
    return triggered;
 }
+
+int bsc_xfer(int pi, bsc_xfer_t *bscxfer)
+{
+   int bytes;
+   int status;
+   gpioExtent_t ext[1];
+
+   /*
+   p1=control
+   p2=0
+   p3=len
+   ## extension ##
+   char buf[len]
+   */
+
+   ext[0].size = bscxfer->txCnt;
+   ext[0].ptr = bscxfer->txBuf;
+
+   bytes = pigpio_command_ext
+      (pi, PI_CMD_BSCX, bscxfer->control, 0, bscxfer->txCnt, 1, ext, 0);
+
+   if (bytes > 0)
+   {
+      recvMax(pi, &status, 4, 4);
+      status = ntohl(status);
+      bytes -= 4;
+      bytes = recvMax(pi, bscxfer->rxBuf, sizeof(bscxfer->rxBuf), bytes);
+      bscxfer->rxCnt = bytes;
+   }
+   else
+   {
+      status = bytes;
+   }
+
+   _pmu(pi);
+
+   return status;
+}
+
+
+int bsc_i2c(int pi, int i2c_addr, bsc_xfer_t *bscxfer)
+{
+   int control = 0;
+
+   if (i2c_addr) control = (i2c_addr<<16) | 0x305;
+   bscxfer->control = control;
+   return bsc_xfer(pi, bscxfer);
+}
+
+
+int event_callback(int pi, unsigned event, evtCBFunc_t f)
+   {return intEventCallback(pi, event, f, 0, 0);}
+
+int event_callback_ex(
+   int pi, unsigned event, evtCBFuncEx_t f, void *user)
+   {return intEventCallback(pi, event, f, user, 1);}
+
+int event_callback_cancel(unsigned id)
+{
+   evtCallback_t *ep;
+   int pi;
+
+   ep = geCallBackFirst;
+
+   while (ep)
+   {
+      if (ep->id == id)
+      {
+         pi = ep->pi;
+
+         if (ep->prev) {ep->prev->next = ep->next;}
+         else          {geCallBackFirst = ep->next;}
+
+         if (ep->next) {ep->next->prev = ep->prev;}
+         else          {geCallBackLast = ep->prev;}
+
+         free(ep);
+
+         findEventBits(pi);
+
+         return 0;
+      }
+      ep = ep->next;
+   }
+   return pigif_callback_not_found;
+}
+
+int wait_for_event(int pi, unsigned event, double timeout)
+{
+   int triggered = 0;
+   int id;
+   double due;
+
+   if ((pi < 0) || (pi >= MAX_PI) || !gPiInUse[pi])
+      return pigif_unconnected_pi;
+
+   if (timeout <= 0.0) return 0;
+
+   due = time_time() + timeout;
+
+   id = event_callback_ex(pi, event, _ewfe, &triggered);
+
+   while (!triggered && (time_time() < due)) time_sleep(0.05);
+
+   event_callback_cancel(id);
+
+   return triggered;
+}
+
+int event_trigger(int pi, unsigned event)
+   {return pigpio_command(pi, PI_CMD_EVM, event, 0, 1);}
 

@@ -2,7 +2,7 @@
 ." Process this file with
 ." groff -man -Tascii pigpiod_if.3
 ."
-.TH pigpiod_if 3 2012-2015 Linux "pigpio archive"
+.TH pigpiod_if 3 2012-2020 Linux "pigpio archive"
 .SH NAME
 pigpiod_if - A C library to interface to the pigpio daemon.
 
@@ -175,6 +175,342 @@ All the functions which return an int return < 0 on error
 
 .br
 
+.br
+
+.SH OVERVIEW
+
+.br
+.SS ESSENTIAL
+.br
+
+.br
+pigpio_start               Connects to the pigpio daemon
+.br
+pigpio_stop                Disconnects from the pigpio daemon
+.br
+.SS BEGINNER
+.br
+
+.br
+set_mode                   Set a GPIO mode
+.br
+get_mode                   Get a GPIO mode
+.br
+
+.br
+set_pull_up_down           Set/clear GPIO pull up/down resistor
+.br
+
+.br
+gpio_read                  Read a GPIO
+.br
+gpio_write                 Write a GPIO
+.br
+
+.br
+set_PWM_dutycycle          Start/stop PWM pulses on a GPIO
+.br
+get_PWM_dutycycle          Get the PWM dutycycle in use on a GPIO
+.br
+
+.br
+set_servo_pulsewidth       Start/stop servo pulses on a GPIO
+.br
+get_servo_pulsewidth       Get the servo pulsewidth in use on a GPIO
+.br
+
+.br
+callback                   Create GPIO level change callback
+.br
+callback_ex                Create GPIO level change callback
+.br
+callback_cancel            Cancel a callback
+.br
+wait_for_edge              Wait for GPIO level change
+.br
+.SS INTERMEDIATE
+.br
+
+.br
+gpio_trigger               Send a trigger pulse to a GPIO.
+.br
+
+.br
+set_watchdog               Set a watchdog on a GPIO.
+.br
+
+.br
+set_PWM_range              Configure PWM range for a GPIO
+.br
+get_PWM_range              Get configured PWM range for a GPIO
+.br
+
+.br
+set_PWM_frequency          Configure PWM frequency for a GPIO
+.br
+get_PWM_frequency          Get configured PWM frequency for a GPIO
+.br
+
+.br
+read_bank_1                Read all GPIO in bank 1
+.br
+read_bank_2                Read all GPIO in bank 2
+.br
+
+.br
+clear_bank_1               Clear selected GPIO in bank 1
+.br
+clear_bank_2               Clear selected GPIO in bank 2
+.br
+
+.br
+set_bank_1                 Set selected GPIO in bank 1
+.br
+set_bank_2                 Set selected GPIO in bank 2
+.br
+
+.br
+start_thread               Start a new thread
+.br
+stop_thread                Stop a previously started thread
+.br
+.SS ADVANCED
+.br
+
+.br
+get_PWM_real_range         Get underlying PWM range for a GPIO
+.br
+
+.br
+notify_open                Request a notification handle
+.br
+notify_begin               Start notifications for selected GPIO
+.br
+notify_pause               Pause notifications
+.br
+notify_close               Close a notification
+.br
+
+.br
+bb_serial_read_open        Opens a GPIO for bit bang serial reads
+.br
+bb_serial_read             Reads bit bang serial data from a GPIO
+.br
+bb_serial_read_close       Closes a GPIO for bit bang serial reads
+.br
+bb_serial_invert           Invert serial logic (1 invert, 0 normal)
+.br
+
+.br
+hardware_clock             Start hardware clock on supported GPIO
+.br
+hardware_PWM               Start hardware PWM on supported GPIO
+.br
+
+.br
+set_glitch_filter         Set a glitch filter on a GPIO
+.br
+set_noise_filter          Set a noise filter on a GPIO
+.br
+.SS SCRIPTS
+.br
+
+.br
+store_script               Store a script
+.br
+run_script                 Run a stored script
+.br
+script_status              Get script status and parameters
+.br
+stop_script                Stop a running script
+.br
+delete_script              Delete a stored script
+.br
+.SS WAVES
+.br
+
+.br
+wave_clear                 Deletes all waveforms
+.br
+
+.br
+wave_add_new               Starts a new waveform
+.br
+wave_add_generic           Adds a series of pulses to the waveform
+.br
+wave_add_serial            Adds serial data to the waveform
+.br
+
+.br
+wave_create                Creates a waveform from added data
+.br
+wave_delete                Deletes one or more waveforms
+.br
+
+.br
+wave_send_once             Transmits a waveform once
+.br
+wave_send_repeat           Transmits a waveform repeatedly
+.br
+
+.br
+wave_chain                 Transmits a chain of waveforms
+.br
+
+.br
+wave_tx_busy               Checks to see if the waveform has ended
+.br
+wave_tx_stop               Aborts the current waveform
+.br
+
+.br
+wave_get_micros            Length in microseconds of the current waveform
+.br
+wave_get_high_micros       Length of longest waveform so far
+.br
+wave_get_max_micros        Absolute maximum allowed micros
+.br
+
+.br
+wave_get_pulses            Length in pulses of the current waveform
+.br
+wave_get_high_pulses       Length of longest waveform so far
+.br
+wave_get_max_pulses        Absolute maximum allowed pulses
+.br
+
+.br
+wave_get_cbs               Length in cbs of the current waveform
+.br
+wave_get_high_cbs          Length of longest waveform so far
+.br
+wave_get_max_cbs           Absolute maximum allowed cbs
+.br
+.SS I2C
+.br
+
+.br
+i2c_open                   Opens an I2C device
+.br
+i2c_close                  Closes an I2C device
+.br
+
+.br
+i2c_write_quick            smbus write quick
+.br
+i2c_write_byte             smbus write byte
+.br
+i2c_read_byte              smbus read byte
+.br
+i2c_write_byte_data        smbus write byte data
+.br
+i2c_write_word_data        smbus write word data
+.br
+i2c_read_byte_data         smbus read byte data
+.br
+i2c_read_word_data         smbus read word data
+.br
+i2c_process_call           smbus process call
+.br
+i2c_write_block_data       smbus write block data
+.br
+i2c_read_block_data        smbus read block data
+.br
+i2c_block_process_call     smbus block process call
+.br
+
+.br
+i2c_write_i2c_block_data   smbus write I2C block data
+.br
+i2c_read_i2c_block_data    smbus read I2C block data
+.br
+
+.br
+i2c_read_device            Reads the raw I2C device
+.br
+i2c_write_device           Writes the raw I2C device
+.br
+
+.br
+i2c_zip                    Performs multiple I2C transactions
+.br
+
+.br
+bb_i2c_open                Opens GPIO for bit banging I2C
+.br
+bb_i2c_close               Closes GPIO for bit banging I2C
+.br
+bb_i2c_zip                 Performs multiple bit banged I2C transactions
+.br
+.SS SPI
+.br
+
+.br
+spi_open                   Opens a SPI device
+.br
+spi_close                  Closes a SPI device
+.br
+
+.br
+spi_read                   Reads bytes from a SPI device
+.br
+spi_write                  Writes bytes to a SPI device
+.br
+spi_xfer                   Transfers bytes with a SPI device
+.br
+.SS SERIAL
+.br
+
+.br
+serial_open                Opens a serial device
+.br
+serial_close               Closes a serial device
+.br
+
+.br
+serial_write_byte          Writes a byte to a serial device
+.br
+serial_read_byte           Reads a byte from a serial device
+.br
+serial_write               Writes bytes to a serial device
+.br
+serial_read                Reads bytes from a serial device
+.br
+
+.br
+serial_data_available      Returns number of bytes ready to be read
+.br
+.SS CUSTOM
+.br
+
+.br
+custom_1                   User custom function 1
+.br
+custom_2                   User custom function 2
+.br
+.SS UTILITIES
+.br
+
+.br
+get_current_tick           Get current tick (microseconds)
+.br
+
+.br
+get_hardware_revision      Get hardware revision
+.br
+get_pigpio_version         Get the pigpio version
+.br
+pigpiod_if_version         Get the pigpiod_if version
+.br
+
+.br
+pigpio_error               Get a text description of an error code.
+.br
+
+.br
+time_sleep                 Sleeps for a float number of seconds
+.br
+time_time                  Float number of seconds since the epoch
 .br
 .SH FUNCTIONS
 
@@ -1065,15 +1401,13 @@ The watchdog may be cancelled by setting timeout to 0.
 .br
 
 .br
-If no level change has been detected for the GPIO for timeout
-milliseconds any notification for the GPIO has a report written
-to the fifo with the flags set to indicate a watchdog timeout.
+Once a watchdog has been started callbacks for the GPIO will be
+triggered every timeout interval after the last GPIO activity.
 
 .br
 
 .br
-The \fBcallback\fP and \fBcallback_ex\fP functions interpret the flags
-and will call registered callbacks for the GPIO with level TIMEOUT.
+The callback will receive the special level PI_TIMEOUT.
 
 .IP "\fBint set_glitch_filter(unsigned user_gpio, unsigned steady)\fP"
 .IP "" 4
@@ -1107,7 +1441,15 @@ Returns 0 if OK, otherwise PI_BAD_USER_GPIO, or PI_BAD_FILTER.
 .br
 
 .br
-Note, each (stable) edge will be timestamped \fBsteady\fP microseconds
+This filter affects the GPIO samples returned to callbacks set up
+with \fBcallback\fP, \fBcallback_ex\fP and \fBwait_for_edge\fP.
+
+.br
+
+.br
+It does not affect levels read by \fBgpio_read\fP,
+\fBread_bank_1\fP, or \fBread_bank_2\fP.
+Each (stable) edge will be timestamped \fBsteady\fP microseconds
 after it was first detected.
 
 .IP "\fBint set_noise_filter(unsigned user_gpio, unsigned steady, unsigned active)\fP"
@@ -1144,7 +1486,19 @@ Returns 0 if OK, otherwise PI_BAD_USER_GPIO, or PI_BAD_FILTER.
 .br
 
 .br
-Note, level changes before and after the active period may
+This filter affects the GPIO samples returned to callbacks set up
+with \fBcallback\fP, \fBcallback_ex\fP and \fBwait_for_edge\fP.
+
+.br
+
+.br
+It does not affect levels read by \fBgpio_read\fP,
+\fBread_bank_1\fP, or \fBread_bank_2\fP.
+
+.br
+
+.br
+Level changes before and after the active period may
 be reported.  Your software must be designed to cope with
 such reports.
 
@@ -1754,6 +2108,24 @@ Wave ids are allocated in order, 0, 1, 2, etc.
 .br
 
 .br
+The wave is flagged for deletion.  The resources used by the wave
+will only be reused when either of the following apply.
+
+.br
+
+.br
+- all waves with higher numbered wave ids have been deleted or have
+been flagged for deletion.
+
+.br
+
+.br
+- a new wave is created which uses exactly the same resources as
+the current wave (see the C source for gpioWaveCreate for details).
+
+.br
+
+.br
 Returns 0 if OK, otherwise PI_BAD_WAVE_ID.
 
 .IP "\fBint wave_send_once(unsigned wave_id)\fP"
@@ -2097,7 +2469,7 @@ This function stores a script for later execution.
 .br
 
 .br
-See \fBhttp://abyz.co.uk/rpi/pigpio/pigs.html#Scripts\fP for details.
+See \fBhttp://abyz.me.uk/rpi/pigpio/pigs.html#Scripts\fP for details.
 
 .br
 
@@ -2378,6 +2750,21 @@ No flags are currently defined.  This parameter should be set to zero.
 .br
 Physically buses 0 and 1 are available on the Pi.  Higher numbered buses
 will be available if a kernel supported bus multiplexor is being used.
+
+.br
+
+.br
+The GPIO used are given in the following table.
+
+.br
+
+.br
+        SDA   SCL
+.br
+I2C 0    0     1
+.br
+I2C 1    2     3
+.br
 
 .br
 
@@ -3287,7 +3674,7 @@ End
 
 .IP "\fBint spi_open(unsigned spi_channel, unsigned baud, unsigned spi_flags)\fP"
 .IP "" 4
-This function returns a handle for the SPI device on channel.
+This function returns a handle for the SPI device on the channel.
 Data will be transferred at baud bits per second.  The flags may
 be used to modify the default behaviour of 4-wire operation, mode 0,
 active low chip select.
@@ -3295,17 +3682,40 @@ active low chip select.
 .br
 
 .br
-An auxiliary SPI device is available on all models but the
-A and B and may be selected by setting the A bit in the
-flags.  The auxiliary device has 3 chip selects and a
-selectable word size in bits.
+The Pi has two SPI peripherals: main and auxiliary.
+
+.br
+
+.br
+The main SPI has two chip selects (channels), the auxiliary has
+three.
+
+.br
+
+.br
+The auxiliary SPI is available on all models but the A and B.
+
+.br
+
+.br
+The GPIO used are given in the following table.
+
+.br
+
+.br
+           MISO   MOSI   SCLK   CE0   CE1   CE2
+.br
+Main SPI      9     10     11     8     7     -
+.br
+Aux SPI      19     20     21    18    17    16
+.br
 
 .br
 
 .br
 
 .EX
-spi_channel: 0-1 (0-2 for the auxiliary SPI device).
+spi_channel: 0-1 (0-2 for the auxiliary SPI).
 .br
        baud: 32K-125M (values above 30M are unlikely to work).
 .br
@@ -3345,7 +3755,7 @@ mm defines the SPI mode.
 .br
 
 .br
-Warning: modes 1 and 3 do not appear to work on the auxiliary device.
+Warning: modes 1 and 3 do not appear to work on the auxiliary SPI.
 
 .br
 
@@ -3378,40 +3788,73 @@ ux is 0 if the CEx GPIO is reserved for SPI (default) and 1 otherwise.
 .br
 
 .br
-A is 0 for the standard SPI device, 1 for the auxiliary SPI.
+A is 0 for the main SPI, 1 for the auxiliary SPI.
 
 .br
 
 .br
-W is 0 if the device is not 3-wire, 1 if the device is 3-wire.  Standard
-SPI device only.
+W is 0 if the device is not 3-wire, 1 if the device is 3-wire.  Main
+SPI only.
 
 .br
 
 .br
 nnnn defines the number of bytes (0-15) to write before switching
 the MOSI line to MISO to read data.  This field is ignored
-if W is not set.  Standard SPI device only.
+if W is not set.  Main SPI only.
 
 .br
 
 .br
 T is 1 if the least significant bit is transmitted on MOSI first, the
 default (0) shifts the most significant bit out first.  Auxiliary SPI
-device only.
+only.
 
 .br
 
 .br
 R is 1 if the least significant bit is received on MISO first, the
 default (0) receives the most significant bit first.  Auxiliary SPI
-device only.
+only.
 
 .br
 
 .br
 bbbbbb defines the word size in bits (0-32).  The default (0)
-sets 8 bits per word.  Auxiliary SPI device only.
+sets 8 bits per word.  Auxiliary SPI only.
+
+.br
+
+.br
+The \fBspi_read\fP, \fBspi_write\fP, and \fBspi_xfer\fP functions
+transfer data packed into 1, 2, or 4 bytes according to
+the word size in bits.
+
+.br
+
+.br
+For bits 1-8 there will be one byte per word.
+.br
+For bits 9-16 there will be two bytes per word.
+.br
+For bits 17-32 there will be four bytes per word.
+
+.br
+
+.br
+Multi-byte transfers are made in least significant byte first order.
+
+.br
+
+.br
+E.g. to transfer 32 11-bit words buf should contain 64 bytes
+and count should be 64.
+
+.br
+
+.br
+E.g. to transfer the 14 bit value 0x1ABC send the bytes 0xBC followed
+by 0x1A.
 
 .br
 
@@ -3612,6 +4055,11 @@ handle: >=0, as returned by a call to \fBserial_open\fP.
 Returns the read byte (>=0) if OK, otherwise PI_BAD_HANDLE,
 PI_SER_READ_NO_DATA, or PI_SER_READ_FAILED.
 
+.br
+
+.br
+If no data is ready PI_SER_READ_NO_DATA is returned.
+
 .IP "\fBint serial_write(unsigned handle, char *buf, unsigned count)\fP"
 .IP "" 4
 This function writes count bytes from buf to the the serial port
@@ -3661,6 +4109,11 @@ handle: >=0, as returned by a call to \fBserial_open\fP.
 .br
 Returns the number of bytes read (>0) if OK, otherwise PI_BAD_HANDLE,
 PI_BAD_PARAM, PI_SER_READ_NO_DATA, or PI_SER_WRITE_FAILED.
+
+.br
+
+.br
+If no data is ready zero is returned.
 
 .IP "\fBint serial_data_available(unsigned handle)\fP"
 .IP "" 4
@@ -3782,6 +4235,36 @@ pigif_duplicate_callback, or pigif_bad_callback.
 The callback is called with the GPIO, edge, and tick, whenever the
 GPIO has the identified edge.
 
+.br
+
+.br
+
+.EX
+Parameter   Value    Meaning
+.br
+
+.br
+GPIO        0-31     The GPIO which has changed state
+.br
+
+.br
+edge        0-2      0 = change to low (a falling edge)
+.br
+                     1 = change to high (a rising edge)
+.br
+                     2 = no level change (a watchdog timeout)
+.br
+
+.br
+tick        32 bit   The number of microseconds since boot
+.br
+                     WARNING: this wraps around from
+.br
+                     4294967295 to 0 roughly every 72 minutes
+.br
+
+.EE
+
 .IP "\fBint callback_ex(unsigned user_gpio, unsigned edge, CBFuncEx_t f, void *userdata)\fP"
 .IP "" 4
 This function initialises a new callback.
@@ -3817,6 +4300,36 @@ the GPIO has the identified edge.
 .br
 
 .br
+
+.EX
+Parameter   Value    Meaning
+.br
+
+.br
+GPIO        0-31     The GPIO which has changed state
+.br
+
+.br
+edge        0-2      0 = change to low (a falling edge)
+.br
+                     1 = change to high (a rising edge)
+.br
+                     2 = no level change (a watchdog timeout)
+.br
+
+.br
+tick        32 bit   The number of microseconds since boot
+.br
+                     WARNING: this wraps around from
+.br
+                     4294967295 to 0 roughly every 72 minutes
+.br
+
+.br
+userdata    pointer  Pointer to an arbitrary object
+.br
+
+.EE
 
 .IP "\fBint callback_cancel(unsigned callback_id)\fP"
 .IP "" 4
@@ -4823,4 +5336,4 @@ typedef enum
 pigpiod(1), pig2vcd(1), pigs(1), pigpio(3), pigpiod_if2(3)
 .SH AUTHOR
 
-joan@abyz.co.uk
+joan@abyz.me.uk
