@@ -25,7 +25,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 */
 
-/* pigpio version 76 */
+/* pigpio version 78 */
 
 /* include ------------------------------------------------------- */
 
@@ -950,6 +950,7 @@ typedef struct
    uint32_t nfRBitV;
 
    uint32_t gfSteadyUs;
+   uint8_t  gfInitialised;
    uint32_t gfTick;
    uint32_t gfLBitV;
    uint32_t gfRBitV;
@@ -1570,6 +1571,9 @@ int myPathBad(char *name)
    parts = 0;
    in_part = 0;
    last_char_dot = 0;
+
+   if (strstr(name, "..")) return 1;
+   if (strstr(name, "\\.")) return 1;
 
    len = strlen(name);
 
@@ -3000,7 +3004,9 @@ static void waveCBsOOLs(int *numCBs, int *numBOOLs, int *numTOOLs)
 
    for (i=0; i<numWaves; i++)
    {
-      if (waves[i].gpioOn || waves[i].gpioOff) {numCB++; numBOOL++;}
+      if (waves[i].gpioOn)                 {numBOOL++;}
+      if (waves[i].gpioOff)                {numBOOL++;}
+      if (waves[i].gpioOn || waves[i].gpioOff) {numCB++;}
       if (waves[i].flags & WAVE_FLAG_READ) {numCB++; numTOOL++;}
       if (waves[i].flags & WAVE_FLAG_TICK) {numCB++; numTOOL++;}
 
@@ -5683,7 +5689,7 @@ unsigned alert_delays[]=
 static void alertGlitchFilter(gpioSample_t *sample, int numSamples)
 {
    int i, j, diff;
-   uint32_t steadyUs, changedTick, RBitV, LBitV;
+   uint32_t steadyUs, changedTick, RBitV, LBitV, initialised;
    uint32_t bit, bitV;
 
    for (i=0; i<=PI_MAX_USER_GPIO; i++)
@@ -5692,6 +5698,17 @@ static void alertGlitchFilter(gpioSample_t *sample, int numSamples)
 
       if (monitorBits & bit & gFilterBits)
       {
+         initialised = gpioAlert[i].gfInitialised;
+         if (!initialised && numSamples > 0)
+         {
+           /* Initialise filter with first sample */
+           bitV = sample[0].level & bit;
+           gpioAlert[i].gfRBitV = bitV;
+           gpioAlert[i].gfLBitV = bitV;
+           gpioAlert[i].gfTick = sample[0].tick;
+           gpioAlert[i].gfInitialised = 1;
+         }
+
          steadyUs    = gpioAlert[i].gfSteadyUs;
          RBitV       = gpioAlert[i].gfRBitV;
          LBitV       = gpioAlert[i].gfLBitV;
@@ -7318,7 +7335,7 @@ static int initGrabLockFile(void)
 static uint32_t * initMapMem(int fd, uint32_t addr, uint32_t len)
 {
     return (uint32_t *) mmap(0, len,
-       PROT_READ|PROT_WRITE|PROT_EXEC,
+       PROT_READ|PROT_WRITE,
        MAP_SHARED|MAP_LOCKED,
        fd, addr);
 }
@@ -12333,18 +12350,8 @@ int gpioGlitchFilter(unsigned gpio, unsigned steady)
 
    if (steady)
    {
-      gpioAlert[gpio].gfTick  = systReg[SYST_CLO];
-
-      if (gpioRead_Bits_0_31() & (1<<gpio))
-      {
-         gpioAlert[gpio].gfLBitV = (1<<gpio);
-         gpioAlert[gpio].gfRBitV = 0 ;
-      }
-      else
-      {
-         gpioAlert[gpio].gfLBitV = 0 ;
-         gpioAlert[gpio].gfRBitV = (1<<gpio);
-      }
+      /* Initialise values next time we process alerts */
+      gpioAlert[gpio].gfInitialised = 0;
    }
 
    gpioAlert[gpio].gfSteadyUs = steady;
@@ -13217,6 +13224,8 @@ int fileApprove(char *filename)
    buffer[0] = 0;
    match[0] = 0;
 
+   if (myPathBad(filename)) return PI_FILE_NONE;
+
    f = fopen("/opt/pigpio/access", "r");
 
    if (!f) return PI_FILE_NONE;
@@ -13273,7 +13282,7 @@ int fileOpen(char *file, unsigned mode)
 {
    static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
    int fd=-1;
-   int i, slot, oflag, omode;
+   int i, slot, oflag, omode, pmode, rmode;
    struct stat statbuf;
 
    DBG(DBG_USER, "file=%s mode=%d", file, mode);
@@ -13285,8 +13294,14 @@ int fileOpen(char *file, unsigned mode)
         ((mode & PI_FILE_RW) == 0) )
       SOFT_ERROR(PI_BAD_FILE_MODE, "bad mode (%d)", mode);
 
-   if ((fileApprove(file) & mode) == PI_FILE_NONE)
+   pmode = fileApprove(file); // 0=NONE, 1=READ, 2=WRITE, 3=RW
+   rmode = mode & PI_FILE_RW; // 0=NONE, 1=READ, 2=WRITE, 3=RW
+
+   if (((pmode & rmode) != rmode) || (rmode == PI_FILE_NONE))
       SOFT_ERROR(PI_NO_FILE_ACCESS, "no permission to access file (%s)", file);
+
+   if ((mode > 3) && ((mode & PI_FILE_WRITE) == 0))
+      SOFT_ERROR(PI_NO_FILE_ACCESS, "no permission to write file (%s)", file);
 
    slot = -1;
 
@@ -13311,7 +13326,6 @@ int fileOpen(char *file, unsigned mode)
 
    if (mode & PI_FILE_APPEND)
    {
-      mode |= PI_FILE_WRITE;
       oflag |= O_APPEND;
    }
 
@@ -13323,7 +13337,6 @@ int fileOpen(char *file, unsigned mode)
 
    if (mode & PI_FILE_TRUNC)
    {
-      mode |= PI_FILE_WRITE;
       oflag |= O_TRUNC;
    }
 
@@ -13508,7 +13521,7 @@ int fileList(char *fpat,  char *buf, unsigned count)
 
    CHECK_INITED;
 
-   if (fileApprove(fpat) == PI_FILE_NONE)
+   if ((fileApprove(fpat) & PI_FILE_READ) != PI_FILE_READ)
       SOFT_ERROR(PI_NO_FILE_ACCESS, "no permission to access file (%s)", fpat);
 
    bufpos = 0;
@@ -13729,8 +13742,8 @@ unsigned gpioHardwareRevision(void)
             rev = ntohl(tmp);
             rev &= 0xFFFFFF; /* mask out warranty bit */
          }
+         fclose(filp);
       }
-      fclose(filp);
    }
 
    piCores = 0;
@@ -13996,44 +14009,6 @@ int gpioCfgSetInternals(uint32_t cfgVal)
    gpioCfg.dbgLevel = cfgVal & 0xF;
    gpioCfg.alertFreq = (cfgVal>>4) & 0xF;
    return 0;
-}
-
-int gpioCfgInternals(unsigned cfgWhat, unsigned cfgVal)
-{
-   int retVal = PI_BAD_CFG_INTERNAL;
-
-   DBG(DBG_USER, "cfgWhat=%u, cfgVal=%d", cfgWhat, cfgVal);
-
-   switch(cfgWhat)
-   {
-      case 562484977:
-
-         if (cfgVal) gpioCfg.internals |= PI_CFG_STATS;
-         else gpioCfg.internals &= (~PI_CFG_STATS);
-
-         DBG(DBG_ALWAYS, "show stats is %u", cfgVal);
-
-         retVal = 0;
-
-         break;
-
-      case 984762879:
-
-         if ((cfgVal >= DBG_ALWAYS) && (cfgVal <= DBG_MAX_LEVEL))
-         {
-            
-            gpioCfg.dbgLevel = cfgVal;
-            gpioCfg.internals = (gpioCfg.internals & (~0xF)) | cfgVal;
-
-            DBG(DBG_ALWAYS, "Debug level is %u", cfgVal);
-
-            retVal = 0;
-         }
-
-         break;
-   }
-
-   return retVal;
 }
 
 
